@@ -111,10 +111,10 @@ def release_output_keys(output, cur_event, keys, remappings):
     # Only release keys that are actually pressed
     to_release &= active_output_keys
     for key in to_release:
-            activated_output_keys.discard(key)
-            event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
-                                            ecodes.EV_KEY, key, 0)
-            write_event(output, event)
+        activated_output_keys.discard(key)
+        event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
+                                        ecodes.EV_KEY, key, 0)
+        write_event(output, event)
 
 
 def remap_event(output, event, keys, remappings):
