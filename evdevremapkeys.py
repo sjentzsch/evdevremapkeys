@@ -118,6 +118,7 @@ def remap_event(output, event, keys, remappings):
     if key_down:
         release_output_keys(output, event, keys, remappings)
     for remapping in remappings:
+        original_code = event.code
         event.code = remapping['code']
         event.type = remapping.get('type', None) or event.type
         values = remapping.get('value', None) or [event.value]
@@ -131,10 +132,11 @@ def remap_event(output, event, keys, remappings):
                         activated_output_keys.add(event.code)
                         write_event(output, event)
                 elif value is 0:
-                    # Do not release keys that were not activated
-                    # as part of the remapping
-                    if event.code in active_output_keys and \
-                       event.code in activated_output_keys:
+                    # Do not release keys that were not activated as part of
+                    # the remapping unless its the key being released
+                    if (event.code in active_output_keys and
+                        (event.code in activated_output_keys or
+                         event.code == original_code)):
                         activated_output_keys.discard(event.code)
                         write_event(output, event)
                 else:
