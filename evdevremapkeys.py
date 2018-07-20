@@ -34,6 +34,9 @@ from evdev import ecodes, InputDevice, UInput
 from xdg import BaseDirectory
 import yaml
 
+import Xlib
+import Xlib.display
+
 DEFAULT_RATE = .1  # seconds
 repeat_tasks = {}
 remapped_tasks = {}
@@ -51,6 +54,12 @@ def write_event(output, event):
     output.syn()
 
 
+def get_active_window():
+    disp = Xlib.display.Display()
+    window = disp.get_input_focus().focus
+    return window.get_wm_class()[1] if window else None
+
+
 @asyncio.coroutine
 def handle_events(input, output, remappings):
     while True:
@@ -59,6 +68,7 @@ def handle_events(input, output, remappings):
             best_remapping = ([], None)
             if event.type == ecodes.EV_KEY:
                 active_keys = set(input.active_keys())
+                active_keys.add(get_active_window())  # Use window to select mapping
                 active_keys.add(event.code)  # Needed to include code on keyup
                 for keys, remapping in remappings.items():
                     if active_keys.issuperset(keys) and \
@@ -273,7 +283,7 @@ def resolve_ecodes(by_name):
         if 'type' in mapping:
             mapping['type'] = ecodes.ecodes[mapping['type']]
         return mapping
-    return {tuple(ecodes.ecodes[key] for key in keys):
+    return {tuple(ecodes.ecodes[key] if key in ecodes.ecodes else key for key in keys):
             list(map(resolve_mapping, mappings))
             for keys, mappings in by_name.items()}
 
