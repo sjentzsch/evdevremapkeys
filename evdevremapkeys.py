@@ -56,14 +56,15 @@ def handle_events(input, output, remappings):
     while True:
         events = yield from input.async_read()  # noqa
         for event in events:
-            active_keys = set(input.active_keys())
-            active_keys.add(event.code)  # Needed to include code on keyup
             best_remapping = ([], None)
-            for keys, remapping in remappings.items():
-                if active_keys.issuperset(keys) and \
-                   len(keys) > len(best_remapping[0]):
-                    best_remapping = (keys, remapping)
-            if event.type == ecodes.EV_KEY and best_remapping[1]:
+            if event.type == ecodes.EV_KEY:
+                active_keys = set(input.active_keys())
+                active_keys.add(event.code)  # Needed to include code on keyup
+                for keys, remapping in remappings.items():
+                    if active_keys.issuperset(keys) and \
+                       len(keys) > len(best_remapping[0]):
+                        best_remapping = (keys, remapping)
+            if best_remapping[1]:
                 remap_event(output, event, active_keys,
                             best_remapping[0], best_remapping[1])
             else:
