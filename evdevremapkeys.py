@@ -57,7 +57,8 @@ def write_event(output, event):
 def get_active_window():
     disp = Xlib.display.Display()
     window = disp.get_input_focus().focus
-    return window.get_wm_class()[1] if window else None
+    cls = window.get_wm_class() if window else None
+    return cls[1] if cls else None
 
 
 @asyncio.coroutine
