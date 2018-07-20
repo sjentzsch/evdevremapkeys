@@ -75,7 +75,7 @@ def handle_events(input, output, remappings):
                        len(keys) > len(best_remapping[0]):
                         best_remapping = (keys, remapping)
             if best_remapping[1]:
-                remap_event(output, event, active_keys,
+                remap_event(output, event,
                             best_remapping[0], best_remapping[1])
             else:
                 write_event(output, event)
@@ -111,7 +111,7 @@ def release_output_keys(output, cur_event, keys, remappings):
             write_event(output, event)
 
 
-def remap_event(output, event, active_keys, keys, remappings):
+def remap_event(output, event, keys, remappings):
     key_down = event.value is 1
     key_up = event.value is 0
     if key_down:
