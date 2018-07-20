@@ -43,7 +43,6 @@ active_output_keys = set()
 
 def write_event(output, event):
     if event.type == ecodes.EV_KEY:
-        print('OUT', event)
         if event.value is 0:
             active_output_keys.discard(event.code)
         elif event.value is 1:
