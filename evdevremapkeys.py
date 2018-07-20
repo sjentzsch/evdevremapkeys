@@ -37,18 +37,38 @@ import yaml
 DEFAULT_RATE = .1  # seconds
 repeat_tasks = {}
 remapped_tasks = {}
+activated_output_keys = set()
+active_output_keys = set()
+
+
+def write_event(output, event):
+    if event.type == ecodes.EV_KEY:
+        print('OUT', event)
+        if event.value is 0:
+            active_output_keys.discard(event.code)
+        elif event.value is 1:
+            active_output_keys.add(event.code)
+    output.write_event(event)
+    output.syn()
+
 
 @asyncio.coroutine
 def handle_events(input, output, remappings):
     while True:
         events = yield from input.async_read()  # noqa
         for event in events:
-            if event.type == ecodes.EV_KEY and \
-               event.code in remappings:
-                remap_event(output, event, remappings)
+            active_keys = set(input.active_keys())
+            active_keys.add(event.code)  # Needed to include code on keyup
+            best_remapping = ([], None)
+            for keys, remapping in remappings.items():
+                if active_keys.issuperset(keys) and \
+                   len(keys) > len(best_remapping[0]):
+                    best_remapping = (keys, remapping)
+            if event.type == ecodes.EV_KEY and best_remapping[1]:
+                remap_event(output, event, active_keys,
+                            best_remapping[0], best_remapping[1])
             else:
-                output.write_event(event)
-                output.syn()
+                write_event(output, event)
 
 
 @asyncio.coroutine
@@ -59,14 +79,34 @@ def repeat_event(event, rate, count, values, output):
         count -= 1
         for value in values:
             event.value = value
-            output.write_event(event)
-            output.syn()
+            write_event(output, event)
+
         yield from asyncio.sleep(rate)
 
 
-def remap_event(output, event, remappings):
-    for remapping in remappings[event.code]:
-        original_code = event.code
+def release_output_keys(output, cur_event, keys, remappings):
+    # Release independent keys of current remapping that got activated
+    to_release = set(keys)
+    to_release.discard(cur_event.code)
+    # But do not release keys that will be re-activated soon
+    to_release -= set(r['code'] for r in remappings)
+    # Release keys activated due to any previously active remapping
+    to_release |= activated_output_keys
+    # Only release keys that are actually pressed
+    to_release &= active_output_keys
+    for key in to_release:
+            activated_output_keys.discard(key)
+            event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
+                                            ecodes.EV_KEY, key, 0)
+            write_event(output, event)
+
+
+def remap_event(output, event, active_keys, keys, remappings):
+    key_down = event.value is 1
+    key_up = event.value is 0
+    if key_down:
+        release_output_keys(output, event, keys, remappings)
+    for remapping in remappings:
         event.code = remapping['code']
         event.type = remapping.get('type', None) or event.type
         values = remapping.get('value', None) or [event.value]
@@ -75,26 +115,34 @@ def remap_event(output, event, remappings):
         if not repeat and not delay:
             for value in values:
                 event.value = value
-                output.write_event(event)
-                output.syn()
+                if value is 1:
+                    if event.code not in active_output_keys:
+                        activated_output_keys.add(event.code)
+                        write_event(output, event)
+                elif value is 0:
+                    # Do not release keys that were not activated
+                    # as part of the remapping
+                    if event.code in active_output_keys and \
+                       event.code in activated_output_keys:
+                        activated_output_keys.discard(event.code)
+                        write_event(output, event)
+                else:
+                    write_event(output, event)
         else:
-            key_down = event.value is 1
-            key_up = event.value is 0
             count = remapping.get('count', 0)
 
             if not (key_up or key_down):
                 return
             if delay:
-                if original_code not in remapped_tasks or remapped_tasks[original_code] == 0:
+                if keys not in remapped_tasks or remapped_tasks[keys] == 0:
                     if key_down:
-                        remapped_tasks[original_code] = count
+                        remapped_tasks[keys] = count
                 else:
                     if key_down:
-                        remapped_tasks[original_code] -= 1
+                        remapped_tasks[keys] -= 1
 
-                if remapped_tasks[original_code] == count:
-                    output.write_event(event)
-                    output.syn()
+                if remapped_tasks[keys] == count:
+                    write_event(output, event)
             elif repeat:
                 # count > 0  - ignore key-up events
                 # count is 0 - repeat until key-up occurs
@@ -103,11 +151,11 @@ def remap_event(output, event, remappings):
                 if ignore_key_up and key_up:
                     return
                 rate = remapping.get('rate', DEFAULT_RATE)
-                repeat_task = repeat_tasks.pop(original_code, None)
+                repeat_task = repeat_tasks.pop(keys, None)
                 if repeat_task:
                     repeat_task.cancel()
                 if key_down:
-                    repeat_tasks[original_code] = asyncio.ensure_future(
+                    repeat_tasks[keys] = asyncio.ensure_future(
                         repeat_event(event, rate, count, values, output))
 
 
@@ -170,11 +218,23 @@ def load_config(config_override):
 #         'KEY_A',
 #         {'code': 'KEY_X', 'value': 1}
 #         {'code': 'KEY_Y', 'value': [1,0]]}
+#     ],
+#     '(KEY_LEFTMETA, BTN_EXTRA)': [
+#         'KEY_Z',
+#         'KEY_A',
+#         {'code': 'KEY_X', 'value': 1}
+#         {'code': 'KEY_Y', 'value': [1,0]]}
 #     ]
 # }}
 # into fixed format
 # {'remappings': {
-#     'BTN_EXTRA': [
+#     ('BTN_EXTRA',): [
+#         {'code': 'KEY_Z'},
+#         {'code': 'KEY_A'},
+#         {'code': 'KEY_X', 'value': [1]}
+#         {'code': 'KEY_Y', 'value': [1,0]]}
+#     ],
+#     ('KEY_LEFTMETA', 'BTN_EXTRA'): [
 #         {'code': 'KEY_Z'},
 #         {'code': 'KEY_A'},
 #         {'code': 'KEY_X', 'value': [1]}
@@ -183,7 +243,11 @@ def load_config(config_override):
 # }}
 def normalize_config(remappings):
     norm = {}
-    for key, mappings in remappings.items():
+    for keys, mappings in remappings.items():
+        if keys.startswith('(') and keys.endswith(')'):
+            keys = tuple(k.strip() for k in keys.strip('()').split(','))
+        else:
+            keys = (keys,)
         new_mappings = []
         for mapping in mappings:
             if type(mapping) is str:
@@ -191,7 +255,7 @@ def normalize_config(remappings):
             else:
                 normalize_value(mapping)
                 new_mappings.append(mapping)
-        norm[key] = new_mappings
+        norm[keys] = new_mappings
     return norm
 
 
@@ -209,8 +273,9 @@ def resolve_ecodes(by_name):
         if 'type' in mapping:
             mapping['type'] = ecodes.ecodes[mapping['type']]
         return mapping
-    return {ecodes.ecodes[key]: list(map(resolve_mapping, mappings))
-            for key, mappings in by_name.items()}
+    return {tuple(ecodes.ecodes[key] for key in keys):
+            list(map(resolve_mapping, mappings))
+            for keys, mappings in by_name.items()}
 
 
 def find_input(device):
