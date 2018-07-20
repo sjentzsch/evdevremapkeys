@@ -42,6 +42,7 @@ repeat_tasks = {}
 remapped_tasks = {}
 activated_output_keys = set()
 active_output_keys = set()
+display = Xlib.display.Display()
 
 
 def write_event(output, event):
@@ -55,8 +56,7 @@ def write_event(output, event):
 
 
 def get_active_window():
-    disp = Xlib.display.Display()
-    window = disp.get_input_focus().focus
+    window = display.get_input_focus().focus
     cls = window.get_wm_class() if window else None
     return cls[1] if cls else None
 
@@ -69,12 +69,17 @@ def handle_events(input, output, remappings):
             best_remapping = ([], None)
             if event.type == ecodes.EV_KEY:
                 active_keys = set(input.active_keys())
-                active_keys.add(get_active_window())  # Use window to select mapping
                 active_keys.add(event.code)  # Needed to include code on keyup
-                for keys, remapping in remappings.items():
-                    if active_keys.issuperset(keys) and \
-                       len(keys) > len(best_remapping[0]):
-                        best_remapping = (keys, remapping)
+                # Check if there is any possible match excluding window class
+                # This way we save CPU by not checking window class every time
+                if any(active_keys.issuperset(
+                        k for k in keys if isinstance(k, int))
+                       for keys in remappings):
+                    active_keys.add(get_active_window())  # Use window to select mapping
+                    for keys, remapping in remappings.items():
+                        if active_keys.issuperset(keys) and \
+                           len(keys) > len(best_remapping[0]):
+                            best_remapping = (keys, remapping)
             if best_remapping[1]:
                 remap_event(output, event,
                             best_remapping[0], best_remapping[1])
