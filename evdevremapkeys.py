@@ -45,16 +45,17 @@ except ImportError:
 DEFAULT_RATE = .1  # seconds
 repeat_tasks = {}
 remapped_tasks = {}
-activated_output_keys = set()
-active_output_keys = set()
+activated_output_keys = {}
+active_output_keys = {}
+active_input_keys = {}
 
 
 def write_event(output, event):
     if event.type == ecodes.EV_KEY:
         if event.value is 0:
-            active_output_keys.discard(event.code)
+            active_output_keys[output.number].discard(event.code)
         elif event.value is 1:
-            active_output_keys.add(event.code)
+            active_output_keys[output.number].add(event.code)
     output.write_event(event)
     output.syn()
 
@@ -72,7 +73,11 @@ def handle_events(input, output, remappings):
         for event in events:
             best_remapping = ([], None)
             if event.type == ecodes.EV_KEY:
-                active_keys = set(input.active_keys())
+                if event.value is 0:
+                    active_input_keys[input.number].discard(event.code)
+                elif event.value is 1:
+                    active_input_keys[input.number].add(event.code)
+                active_keys = active_input_keys[input.number].copy()
                 active_keys.add(event.code)  # Needed to include code on keyup
                 # Check if there is any possible match excluding window class
                 # This way we save CPU by not checking window class every time
@@ -112,11 +117,11 @@ def release_output_keys(output, cur_event, keys, remappings):
     # But do not release keys that will be re-activated soon
     to_release -= set(r['code'] for r in remappings)
     # Release keys activated due to any previously active remapping
-    to_release |= activated_output_keys
+    to_release |= activated_output_keys[output.number]
     # Only release keys that are actually pressed
-    to_release &= active_output_keys
+    to_release &= active_output_keys[output.number]
     for key in to_release:
-        activated_output_keys.discard(key)
+        activated_output_keys[output.number].discard(key)
         event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
                                         ecodes.EV_KEY, key, 0)
         write_event(output, event)
@@ -138,16 +143,16 @@ def remap_event(output, event, keys, remappings):
             for value in values:
                 event.value = value
                 if value is 1:
-                    if event.code not in active_output_keys:
-                        activated_output_keys.add(event.code)
+                    if event.code not in active_output_keys[output.number]:
+                        activated_output_keys[output.number].add(event.code)
                         write_event(output, event)
                 elif value is 0:
                     # Do not release keys that were not activated as part of
                     # the remapping unless its the key being released
-                    if (event.code in active_output_keys and
-                        (event.code in activated_output_keys or
+                    if (event.code in active_output_keys[output.number] and
+                        (event.code in activated_output_keys[output.number] or
                          event.code == original_code)):
-                        activated_output_keys.discard(event.code)
+                        activated_output_keys[output.number].discard(event.code)
                         write_event(output, event)
                 else:
                     write_event(output, event)
@@ -323,7 +328,7 @@ def find_input(device):
     return None
 
 
-def register_device(device):
+def register_device(device, device_number):
     input = find_input(device)
     if input is None:
         print("Can't find input device '%s'. Ignoring." %
@@ -332,6 +337,7 @@ def register_device(device):
                device.get('input_fn', None)))
         return
     input.grab()
+    input.number = device_number
 
     caps = input.capabilities()
     # EV_SYN is automatically added to uinput devices
@@ -346,6 +352,11 @@ def register_device(device):
     caps[ecodes.EV_KEY] = list(extended)
 
     output = UInput(caps, name=device['output_name'])
+    output.number = device_number
+
+    activated_output_keys[output.number] = set()
+    active_output_keys[output.number] = set()
+    active_input_keys[input.number] = set()
 
     asyncio.ensure_future(handle_events(input, output, remappings))
 
@@ -364,8 +375,8 @@ def run_loop(args):
         print("XLib not found. Active window class will be ignored when matching remappings.")
 
     config = load_config(args.config_file)
-    for device in config['devices']:
-        register_device(device)
+    for i, device in enumerate(config['devices']):
+        register_device(device, i)
 
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGTERM,
