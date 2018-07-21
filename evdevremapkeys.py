@@ -326,7 +326,11 @@ def find_input(device):
 def register_device(device):
     input = find_input(device)
     if input is None:
-        raise NameError("Can't find input device")
+        print("Can't find input device '%s'. Ignoring." %
+              (device.get('input_name', None) or
+               device.get('input_phys', None) or
+               device.get('input_fn', None)))
+        return
     input.grab()
 
     caps = input.capabilities()
