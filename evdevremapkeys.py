@@ -296,7 +296,8 @@ def resolve_ecodes(by_name):
         if 'type' in mapping:
             mapping['type'] = ecodes.ecodes[mapping['type']]
         return mapping
-    return {tuple(ecodes.ecodes[key] if key in ecodes.ecodes else key for key in keys):
+    return {tuple(ecodes.ecodes[key] if key in ecodes.ecodes else key
+                  for key in keys):
             list(map(resolve_mapping, mappings))
             for keys, mappings in by_name.items()}
 
@@ -380,6 +381,7 @@ def list_devices():
     devices = [InputDevice(fn) for fn in evdev.list_devices()]
     for device in reversed(devices):
         yield [device.fn, device.phys, device.name]
+
 
 def read_events(req_device):
     for device in list_devices():
