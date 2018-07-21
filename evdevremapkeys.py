@@ -34,15 +34,19 @@ from evdev import ecodes, InputDevice, UInput
 from xdg import BaseDirectory
 import yaml
 
-import Xlib
-import Xlib.display
+try:
+    import Xlib
+    import Xlib.display
+    display = Xlib.display.Display()
+except ImportError:
+    display = None
+
 
 DEFAULT_RATE = .1  # seconds
 repeat_tasks = {}
 remapped_tasks = {}
 activated_output_keys = set()
 active_output_keys = set()
-display = Xlib.display.Display()
 
 
 def write_event(output, event):
@@ -75,7 +79,8 @@ def handle_events(input, output, remappings):
                 if any(active_keys.issuperset(
                         k for k in keys if isinstance(k, int))
                        for keys in remappings):
-                    active_keys.add(get_active_window())  # Use window to select mapping
+                    if display is not None:
+                        active_keys.add(get_active_window())  # Use window to select mapping
                     for keys, remapping in remappings.items():
                         if active_keys.issuperset(keys) and \
                            len(keys) > len(best_remapping[0]):
@@ -350,6 +355,9 @@ def shutdown(loop):
 
 
 def run_loop(args):
+    if display is None:
+        print("XLib not found. Active window class will be ignored when matching remappings.")
+
     config = load_config(args.config_file)
     for device in config['devices']:
         register_device(device)
