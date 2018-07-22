@@ -434,7 +434,7 @@ def read_events(req_device):
                 categorized = evdev.categorize(event)
                 if categorized.keystate == 1:
                     keycode = categorized.keycode if type(categorized.keycode) is str else \
-                            " | ".join(categorized.keycode)
+                        " | ".join(categorized.keycode)
                     print("Key pressed: %s (%s)" % (keycode, categorized.scancode))
         except KeyError:
             if event.value:
@@ -456,7 +456,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     if args.list_devices:
-        print("\n".join(['%s:\t"%s" | "%s' % (fn, phys, name) for (fn, phys, name) in list_devices()]))
+        print("\n".join(['%s:\t"%s" | "%s' % (fn, phys, name)
+                         for (fn, phys, name) in list_devices()]))
     elif args.read_events:
         read_events(args.read_events)
     elif args.daemon:
