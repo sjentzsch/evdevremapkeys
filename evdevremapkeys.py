@@ -42,6 +42,7 @@ except ImportError:
     display = None
 
 
+DEBUG = False
 DEFAULT_RATE = .1  # seconds
 repeat_tasks = {}
 remapped_tasks = {}
@@ -52,6 +53,8 @@ active_input_keys = {}
 
 def write_event(output, event):
     if event.type == ecodes.EV_KEY:
+        if DEBUG:
+            print("OUT", event)
         if event.value is 0:
             active_output_keys[output.number].discard(event.code)
         elif event.value is 1:
@@ -73,6 +76,8 @@ def handle_events(input, output, remappings):
         for event in events:
             best_remapping = ([], None)
             if event.type == ecodes.EV_KEY:
+                if DEBUG:
+                    print("IN", event)
                 if event.value is 0:
                     active_input_keys[input.number].discard(event.code)
                 elif event.value is 1:
