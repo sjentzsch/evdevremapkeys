@@ -120,14 +120,14 @@ def repeat_event(event, rate, count, values, output):
 
 
 def release_output_keys(output, cur_event, keys, remappings):
-    # Release independent keys of current remapping that got activated
+    # Release input keys that got activated before remapping activated
     to_release = set(key for key in keys if isinstance(key, int))
     to_release.discard(cur_event.code)
-    # But do not release keys that will be re-activated soon
+    # But do not release keys that will be re-activated as part of remapping
     to_release -= set(r['code'] for r in remappings)
     # Release keys activated due to any previously active remapping
     to_release |= activated_output_keys[output.number]
-    # Only release keys that are actually pressed
+    # Only release keys that are actually pressed at the moment
     to_release &= active_output_keys[output.number]
     for key in to_release:
         activated_output_keys[output.number].discard(key)
