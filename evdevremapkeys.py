@@ -95,10 +95,14 @@ def handle_events(input, output, remappings):
                         if active_keys.issuperset(keys) and \
                            len(keys) > len(best_remapping[0]):
                             best_remapping = (keys, remapping)
-            if best_remapping[1]:
+            if best_remapping[1] and event.code in best_remapping[0]:
                 remap_event(output, event,
                             best_remapping[0], best_remapping[1])
             else:
+                # Re-press any input keys that were released as when
+                # used to activate a remapping
+                if event.value is 1:
+                    press_input_keys(input, output, event)
                 write_event(output, event)
 
 
@@ -129,6 +133,14 @@ def release_output_keys(output, cur_event, keys, remappings):
         activated_output_keys[output.number].discard(key)
         event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
                                         ecodes.EV_KEY, key, 0)
+        write_event(output, event)
+
+
+def press_input_keys(input, output, cur_event):
+    # Reactivate any inactive pressed input keys
+    for key in (active_input_keys[input.number] - active_output_keys[output.number]):
+        event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
+                                        ecodes.EV_KEY, key, 1)
         write_event(output, event)
 
 
