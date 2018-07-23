@@ -38,6 +38,7 @@ try:
     import Xlib
     import Xlib.display
     display = Xlib.display.Display()
+    NET_ACTIVE_WINDOW = display.intern_atom('_NET_ACTIVE_WINDOW')
 except ImportError:
     display = None
 
@@ -64,8 +65,16 @@ def write_event(output, event):
 
 
 def get_active_window():
-    window = display.get_input_focus().focus
-    cls = window.get_wm_class() if window else None
+    # window = display.get_input_focus().focus
+    # cls = window.get_wm_class() if window else None
+    root = display.screen().root
+    win_id = root.get_full_property(NET_ACTIVE_WINDOW,
+                                    Xlib.X.AnyPropertyType).value[0]
+    window_obj = display.create_resource_object('window', win_id)
+    try:
+        cls = window_obj.get_wm_class() if window_obj else None
+    except Xlib.error.BadWindow:
+        cls = None
     return cls[1] if cls else None
 
 
