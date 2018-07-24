@@ -110,7 +110,7 @@ def handle_events(input, output, remappings):
             else:
                 # Re-press any input keys that were released as when
                 # used to activate a remapping
-                if event.value is 1:
+                if event.type == ecodes.EV_KEY and event.value is 1:
                     press_input_keys(input, output, event)
                 write_event(output, event)
 
