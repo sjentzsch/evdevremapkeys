@@ -81,37 +81,42 @@ def get_active_window(display):
 def handle_events(display, input, output, remappings):
     while True:
         events = yield from input.async_read()  # noqa
-        for event in events:
-            best_remapping = ([], None)
-            if event.type == ecodes.EV_KEY:
-                if DEBUG:
-                    print("IN", event)
-                if event.value is 0:
-                    active_input_keys[input.number].discard(event.code)
-                elif event.value is 1:
-                    active_input_keys[input.number].add(event.code)
-                active_keys = active_input_keys[input.number].copy()
-                active_keys.add(event.code)  # Needed to include code on keyup
-                # Check if there is any possible match excluding window class
-                # This way we save CPU by not checking window class every time
-                if any(active_keys.issuperset(
-                        k for k in keys if isinstance(k, int))
-                       for keys in remappings):
-                    if display is not None:
-                        active_keys.add(get_active_window(display))  # Use window to select mapping
-                    for keys, remapping in remappings.items():
-                        if active_keys.issuperset(keys) and \
-                           len(keys) > len(best_remapping[0]):
-                            best_remapping = (keys, remapping)
-            if best_remapping[1] and event.code in best_remapping[0]:
-                remap_event(output, event,
-                            best_remapping[0], best_remapping[1])
-            else:
-                # Re-press any input keys that were released as when
-                # used to activate a remapping
-                if event.type == ecodes.EV_KEY and event.value is 1:
-                    press_input_keys(input, output, event)
-                write_event(output, event)
+        try:
+            for event in events:
+                best_remapping = ([], None)
+                if event.type == ecodes.EV_KEY:
+                    if DEBUG:
+                        print("IN", event)
+                    if event.value is 0:
+                        active_input_keys[input.number].discard(event.code)
+                    elif event.value is 1:
+                        active_input_keys[input.number].add(event.code)
+                    active_keys = active_input_keys[input.number].copy()
+                    active_keys.add(event.code)  # Needed to include code on keyup
+                    # Check if there is any possible match excluding window class
+                    # This way we save CPU by not checking window class every time
+                    if any(active_keys.issuperset(
+                            k for k in keys if isinstance(k, int))
+                           for keys in remappings):
+                        if display is not None:
+                            # Use window to select mapping
+                            active_keys.add(get_active_window(display))
+                        for keys, remapping in remappings.items():
+                            if active_keys.issuperset(keys) and \
+                               len(keys) > len(best_remapping[0]):
+                                best_remapping = (keys, remapping)
+                if best_remapping[1] and event.code in best_remapping[0]:
+                    remap_event(output, event,
+                                best_remapping[0], best_remapping[1])
+                else:
+                    # Re-press any input keys that were released as when
+                    # used to activate a remapping
+                    if event.type == ecodes.EV_KEY and event.value is 1:
+                        press_input_keys(input, output, event)
+                    write_event(output, event)
+        except OSError as e:
+            print("Device error for '%s'. Ignoring." % input.name)
+            return
 
 
 @asyncio.coroutine
