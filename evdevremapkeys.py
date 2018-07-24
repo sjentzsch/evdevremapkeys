@@ -402,7 +402,11 @@ def shutdown(loop):
 
 def run_loop(args):
     if 'Xlib' in sys.modules:
-        display = Xlib.display.Display()
+        try:
+            display = Xlib.display.Display()
+        except Xlib.error.DisplayConnectionError:
+            print("Unable to connect to X11 display. Active window class will be ignored when matching remappings.")
+            display = None
     else:
         display = None
         print("XLib not found. Active window class will be ignored when matching remappings.")
