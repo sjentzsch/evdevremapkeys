@@ -26,7 +26,7 @@ import asyncio
 import functools
 from pathlib import Path
 import signal
-
+import sys
 
 import daemon
 import evdev
@@ -37,10 +37,8 @@ import yaml
 try:
     import Xlib
     import Xlib.display
-    display = Xlib.display.Display()
-    NET_ACTIVE_WINDOW = display.intern_atom('_NET_ACTIVE_WINDOW')
 except ImportError:
-    display = None
+    pass
 
 
 DEBUG = False
@@ -64,10 +62,11 @@ def write_event(output, event):
     output.syn()
 
 
-def get_active_window():
+def get_active_window(display):
     # window = display.get_input_focus().focus
     # cls = window.get_wm_class() if window else None
     root = display.screen().root
+    NET_ACTIVE_WINDOW = display.intern_atom('_NET_ACTIVE_WINDOW')
     win_id = root.get_full_property(NET_ACTIVE_WINDOW,
                                     Xlib.X.AnyPropertyType).value[0]
     window_obj = display.create_resource_object('window', win_id)
@@ -79,7 +78,7 @@ def get_active_window():
 
 
 @asyncio.coroutine
-def handle_events(input, output, remappings):
+def handle_events(display, input, output, remappings):
     while True:
         events = yield from input.async_read()  # noqa
         for event in events:
@@ -99,7 +98,7 @@ def handle_events(input, output, remappings):
                         k for k in keys if isinstance(k, int))
                        for keys in remappings):
                     if display is not None:
-                        active_keys.add(get_active_window())  # Use window to select mapping
+                        active_keys.add(get_active_window(display))  # Use window to select mapping
                     for keys, remapping in remappings.items():
                         if active_keys.issuperset(keys) and \
                            len(keys) > len(best_remapping[0]):
@@ -354,7 +353,7 @@ def find_input(device):
     return None
 
 
-def register_device(device, device_number):
+def register_device(display, device, device_number):
     input = find_input(device)
     if input is None:
         print("Can't find input device '%s'. Ignoring." %
@@ -384,7 +383,7 @@ def register_device(device, device_number):
     active_output_keys[output.number] = set()
     active_input_keys[input.number] = set()
 
-    asyncio.ensure_future(handle_events(input, output, remappings))
+    asyncio.ensure_future(handle_events(display, input, output, remappings))
 
 
 @asyncio.coroutine
@@ -397,12 +396,15 @@ def shutdown(loop):
 
 
 def run_loop(args):
-    if display is None:
+    if 'Xlib' in sys.modules:
+        display = Xlib.display.Display()
+    else:
+        display = None
         print("XLib not found. Active window class will be ignored when matching remappings.")
 
     config = load_config(args.config_file)
     for i, device in enumerate(config['devices']):
-        register_device(device, i)
+        register_device(display, device, i)
 
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGTERM,
