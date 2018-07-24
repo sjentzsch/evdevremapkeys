@@ -62,23 +62,25 @@ def write_event(output, event):
     output.syn()
 
 
-def get_active_window(display):
-    # window = display.get_input_focus().focus
-    # cls = window.get_wm_class() if window else None
-    root = display.screen().root
-    NET_ACTIVE_WINDOW = display.intern_atom('_NET_ACTIVE_WINDOW')
-    win_id = root.get_full_property(NET_ACTIVE_WINDOW,
-                                    Xlib.X.AnyPropertyType).value[0]
-    window_obj = display.create_resource_object('window', win_id)
+def get_active_window():
     try:
+        # Try to get display the first time, then cache it
+        if get_active_window.display is None:
+            get_active_window.display = Xlib.display.Display()
+        root = get_active_window.display.screen().root
+        NET_ACTIVE_WINDOW = get_active_window.display.intern_atom('_NET_ACTIVE_WINDOW')
+        win_id = root.get_full_property(NET_ACTIVE_WINDOW,
+                                        Xlib.X.AnyPropertyType).value[0]
+        window_obj = get_active_window.display.create_resource_object('window', win_id)
         cls = window_obj.get_wm_class() if window_obj else None
-    except Xlib.error.BadWindow:
-        cls = None
-    return cls[1] if cls else None
+        return cls[1] if cls else None
+
+    except (Xlib.error.DisplayConnectionError, Xlib.error.BadWindow):
+        return None
 
 
 @asyncio.coroutine
-def handle_events(display, input, output, remappings):
+def handle_events(input, output, remappings):
     while True:
         events = yield from input.async_read()  # noqa
         try:
@@ -98,9 +100,9 @@ def handle_events(display, input, output, remappings):
                     if any(active_keys.issuperset(
                             k for k in keys if isinstance(k, int))
                            for keys in remappings):
-                        if display is not None:
+                        if get_active_window.display is not False:
                             # Use window to select mapping
-                            active_keys.add(get_active_window(display))
+                            active_keys.add(get_active_window())
                         for keys, remapping in remappings.items():
                             if active_keys.issuperset(keys) and \
                                len(keys) > len(best_remapping[0]):
@@ -358,7 +360,7 @@ def find_input(device):
     return None
 
 
-def register_device(display, device, device_number):
+def register_device(device, device_number):
     input = find_input(device)
     if input is None:
         print("Can't find input device '%s'. Ignoring." %
@@ -388,7 +390,7 @@ def register_device(display, device, device_number):
     active_output_keys[output.number] = set()
     active_input_keys[input.number] = set()
 
-    asyncio.ensure_future(handle_events(display, input, output, remappings))
+    asyncio.ensure_future(handle_events(input, output, remappings))
 
 
 @asyncio.coroutine
@@ -402,18 +404,14 @@ def shutdown(loop):
 
 def run_loop(args):
     if 'Xlib' in sys.modules:
-        try:
-            display = Xlib.display.Display()
-        except Xlib.error.DisplayConnectionError:
-            print("Unable to connect to X11 display. Active window class will be ignored when matching remappings.")
-            display = None
+        get_active_window.display = None
     else:
-        display = None
+        get_active_window.display = False
         print("XLib not found. Active window class will be ignored when matching remappings.")
 
     config = load_config(args.config_file)
     for i, device in enumerate(config['devices']):
-        register_device(display, device, i)
+        register_device(device, i)
 
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGTERM,
