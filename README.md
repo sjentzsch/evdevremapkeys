@@ -2,6 +2,54 @@
 
 A daemon to remap key events on linux input devices
 
+
+## Changes in This Fork
+
+This fork includes a quick hack implementing N:N remappings.
+
+Multiple input keys can be specified as a "tuple" in the config file, e.g.:
+
+```
+devices:
+- input_name: 'AT Translated Set 2 keyboard'
+  output_name: remap-keyboard
+  remappings:
+    KEY_F1:
+      - BTN_LEFT
+    (KEY_LEFTMETA, KEY_F1):
+      - KEY_LEFTMETA
+      - KEY_F1
+    (KEY_LEFTCTRL, KEY_LEFTBRACE):
+      - KEY_BACK
+    (KEY_LEFTCTRL, KEY_RIGHTBRACE):
+      - KEY_FORWARD
+    (KEY_LEFTCTRL, KEY_LEFTALT, KEY_LEFTBRACE):
+      - KEY_LEFTCTRL
+      - KEY_HOME
+    (KEY_LEFTCTRL, KEY_LEFTALT, KEY_RIGHTBRACE):
+      - KEY_LEFTCTRL
+      - KEY_END
+```
+All additional keys are simply passed from the input to the output, e.g. Shift+F1 will become Shift+LeftBtn and Shift+Meta+F1 will become Shift+Meta+F1.
+
+Additionally, this fork includes a basic implementation of remappings conditioned on the active window class (for X11 only), e.g.:
+
+```
+devices:
+- input_name: 'AT Translated Set 2 keyboard'
+  output_name: remap-keyboard
+  remappings:
+    (KEY_LEFTCTRL, KEY_W):
+      - KEY_LEFTCTRL
+      - KEY_X
+    (KEY_LEFTCTRL, KEY_W, XTerm):
+      - KEY_LEFTCTRL
+      - KEY_W
+```
+
+**Warning!** Key repeating ('repeat' and 'delay' config options) is not yet implemented/tested for N:N mappings.
+
+
 ## Motivation
 
 The remapping of input key events is an problem, and one that has been solved
