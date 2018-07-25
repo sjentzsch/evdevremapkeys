@@ -1,0 +1,21 @@
+# Demonstrates how N:N mappings can be specified
+
+devices:
+- input_name: 'AT Translated Set 2 keyboard'
+  output_name: remap-keyboard
+  remappings:
+    KEY_F1:
+      - BTN_LEFT
+    (KEY_LEFTMETA, KEY_F1):
+      - KEY_LEFTMETA
+      - KEY_F1
+    (KEY_LEFTCTRL, KEY_LEFTBRACE):
+      - KEY_BACK
+    (KEY_LEFTCTRL, KEY_RIGHTBRACE):
+      - KEY_FORWARD
+    (KEY_LEFTCTRL, KEY_LEFTALT, KEY_LEFTBRACE):
+      - KEY_LEFTCTRL
+      - KEY_HOME
+    (KEY_LEFTCTRL, KEY_LEFTALT, KEY_RIGHTBRACE):
+      - KEY_LEFTCTRL
+      - KEY_END

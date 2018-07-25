@@ -1,0 +1,15 @@
+# Demonstrates how mappings can be conditioned on the active window class
+
+devices:
+- input_name: 'AT Translated Set 2 keyboard'
+  output_name: remap-keyboard
+  remappings:
+    (KEY_LEFTCTRL, KEY_W):
+      - KEY_LEFTCTRL
+      - KEY_X
+    (KEY_LEFTCTRL, KEY_W, XTerm):
+      - KEY_LEFTCTRL
+      - KEY_W
+    (KEY_LEFTCTRL, KEY_W, Emacs):
+      - KEY_LEFTCTRL
+      - KEY_W
