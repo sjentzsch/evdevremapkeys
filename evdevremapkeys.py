@@ -45,9 +45,9 @@ DEBUG = False
 DEFAULT_RATE = .1  # seconds
 repeat_tasks = {}
 remapped_tasks = {}
-activated_output_keys = {}
-active_output_keys = {}
-active_input_keys = {}
+active_remapped_keys = {}  # Keys activated as a result of remapping
+active_output_keys = {}  # Output keys currently active
+active_input_keys = {}  # Input keys currently active
 
 
 def write_event(output, event):
@@ -74,7 +74,6 @@ def get_active_window():
         window_obj = get_active_window.display.create_resource_object('window', win_id)
         cls = window_obj.get_wm_class() if window_obj else None
         return cls[1] if cls else None
-
     except (Xlib.error.DisplayConnectionError, Xlib.error.BadWindow):
         return None
 
@@ -85,7 +84,7 @@ def handle_events(input, output, remappings):
         events = yield from input.async_read()  # noqa
         try:
             for event in events:
-                best_remapping = ([], None)
+                best_remapping = ([], None)  # (keys, remapping)
                 if event.type == ecodes.EV_KEY:
                     if DEBUG:
                         print("IN", event)
@@ -101,7 +100,7 @@ def handle_events(input, output, remappings):
                             k for k in keys if isinstance(k, int))
                            for keys in remappings):
                         if get_active_window.display is not False:
-                            # Use window to select mapping
+                            # Use window class to select mapping
                             active_keys.add(get_active_window())
                         for keys, remapping in remappings.items():
                             if active_keys.issuperset(keys) and \
@@ -111,8 +110,8 @@ def handle_events(input, output, remappings):
                     remap_event(output, event,
                                 best_remapping[0], best_remapping[1])
                 else:
-                    # Re-press any input keys that were released as when
-                    # used to activate a remapping
+                    # Re-press any input keys that were released when
+                    # a remapping was activated
                     if event.type == ecodes.EV_KEY and event.value is 1:
                         press_input_keys(input, output, event)
                     write_event(output, event)
@@ -141,19 +140,20 @@ def release_output_keys(output, cur_event, keys, remappings):
     # But do not release keys that will be re-activated as part of remapping
     to_release -= set(r['code'] for r in remappings)
     # Release keys activated due to any previously active remapping
-    to_release |= activated_output_keys[output.number]
+    to_release |= active_remapped_keys[output.number]
     # Only release keys that are actually pressed at the moment
     to_release &= active_output_keys[output.number]
     for key in to_release:
-        activated_output_keys[output.number].discard(key)
+        active_remapped_keys[output.number].discard(key)
         event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
                                         ecodes.EV_KEY, key, 0)
         write_event(output, event)
 
 
 def press_input_keys(input, output, cur_event):
-    # Reactivate any inactive pressed input keys
-    for key in (active_input_keys[input.number] - active_output_keys[output.number]):
+    # Reactivate any inactive, pressed input keys
+    for key in (active_input_keys[input.number] -
+                active_output_keys[output.number]):
         event = evdev.events.InputEvent(cur_event.sec, cur_event.usec,
                                         ecodes.EV_KEY, key, 1)
         write_event(output, event)
@@ -176,15 +176,15 @@ def remap_event(output, event, keys, remappings):
                 event.value = value
                 if value is 1:
                     if event.code not in active_output_keys[output.number]:
-                        activated_output_keys[output.number].add(event.code)
+                        active_remapped_keys[output.number].add(event.code)
                         write_event(output, event)
                 elif value is 0:
                     # Do not release keys that were not activated as part of
                     # the remapping unless its the key being released
                     if (event.code in active_output_keys[output.number] and
-                        (event.code in activated_output_keys[output.number] or
+                        (event.code in active_remapped_keys[output.number] or
                          event.code == original_code)):
-                        activated_output_keys[output.number].discard(event.code)
+                        active_remapped_keys[output.number].discard(event.code)
                         write_event(output, event)
                 else:
                     write_event(output, event)
@@ -386,7 +386,7 @@ def register_device(device, device_number):
     output = UInput(caps, name=device['output_name'])
     output.number = device_number
 
-    activated_output_keys[output.number] = set()
+    active_remapped_keys[output.number] = set()
     active_output_keys[output.number] = set()
     active_input_keys[input.number] = set()
 
