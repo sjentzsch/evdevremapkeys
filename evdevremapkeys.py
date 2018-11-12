@@ -116,7 +116,7 @@ def handle_events(input, output, remappings):
                         press_input_keys(input, output, event)
                     write_event(output, event)
         except OSError as e:
-            print("Device error for '%s'. Ignoring." % input.name)
+            print("Device error for '%s' (%s). Ignoring." % (input.name, e))
             return
 
 
