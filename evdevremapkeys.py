@@ -79,7 +79,7 @@ def get_active_window():
 
 
 @asyncio.coroutine
-def handle_events(input, output, remappings):
+def handle_events(input, output, remappings, critical):
     while True:
         events = yield from input.async_read()  # noqa
         try:
@@ -116,8 +116,12 @@ def handle_events(input, output, remappings):
                         press_input_keys(input, output, event)
                     write_event(output, event)
         except OSError as e:
-            print("Device error for '%s' (%s). Ignoring." % (input.name, e))
-            return
+            if critical:
+                print("Error for critical device '%s' (%s). Quitting." % (input.name, e))
+                sys.exit(1)
+            else:
+                print("Device error for '%s' (%s). Ignoring." % (input.name, e))
+                return
 
 
 @asyncio.coroutine
@@ -361,13 +365,22 @@ def find_input(device):
 
 
 def register_device(device, device_number):
+    critical = device.get('critical', False)
+
     input = find_input(device)
     if input is None:
-        print("Can't find input device '%s'. Ignoring." %
-              (device.get('input_name', None) or
-               device.get('input_phys', None) or
-               device.get('input_fn', None)))
-        return
+        if critical:
+            print("Can't find critical input device '%s'. Quitting." %
+                  (device.get('input_name', None) or
+                   device.get('input_phys', None) or
+                   device.get('input_fn', None)))
+            sys.exit(1)
+        else:
+            print("Can't find input device '%s'. Ignoring." %
+                  (device.get('input_name', None) or
+                   device.get('input_phys', None) or
+                   device.get('input_fn', None)))
+            return
     input.grab()
     input.number = device_number
 
@@ -390,7 +403,7 @@ def register_device(device, device_number):
     active_output_keys[output.number] = set()
     active_input_keys[input.number] = set()
 
-    asyncio.ensure_future(handle_events(input, output, remappings))
+    asyncio.ensure_future(handle_events(input, output, remappings, critical))
 
 
 @asyncio.coroutine
