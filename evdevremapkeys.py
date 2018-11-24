@@ -87,7 +87,8 @@ def handle_events(input, output, remappings, critical):
                 best_remapping = ([], None)  # (keys, remapping)
                 if event.type == ecodes.EV_KEY:
                     if DEBUG:
-                        print("IN", event)
+                        print("IN", event, active_input_keys,
+                              active_output_keys, active_remapped_keys)
                     if event.value is 0:
                         active_input_keys[input.number].discard(event.code)
                     elif event.value is 1:
