@@ -1,0 +1,33 @@
+devices:
+- input_name: AT Translated Set 2 keyboard
+  output_name: remap-keyboard
+  remappings:
+    (KEY_LEFTALT, KEY_LEFT):
+      - KEY_HOME
+    (KEY_LEFTALT, KEY_RIGHT):
+      - KEY_END
+    (KEY_LEFTALT, KEY_UP):
+      - KEY_PAGEUP
+    (KEY_LEFTALT, KEY_DOWN):
+      - KEY_PAGEDOWN
+    (KEY_LEFTALT, KEY_PAGEUP):
+      - KEY_HOME
+    (KEY_LEFTALT, KEY_PAGEDOWN):
+      - KEY_END
+#  remappings:
+#    KEY_LEFTALT:
+#    - modifier_group: mod1
+#  modifier_groups:
+#    mod1:
+#      KEY_LEFT:
+#      - KEY_HOME
+#      KEY_RIGHT:
+#      - KEY_END
+#      KEY_UP:
+#      - KEY_PAGEUP
+#      KEY_DOWN:
+#      - KEY_PAGEDOWN
+#      KEY_PAGEUP:
+#      - KEY_HOME
+#      KEY_PAGEDOWN:
+#      - KEY_END

@@ -1,0 +1,12 @@
+[Unit]
+Conflicts=gnome-shell-x11.service
+
+[Service]
+WorkingDirectory=/tmp
+ExecStart=/home/sjentzsch/.local/bin/evdevremapkeys.py -f /home/sjentzsch/me/evdevremapkeys/config.yaml
+Restart=always
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
